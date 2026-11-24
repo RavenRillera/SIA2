@@ -1,5 +1,10 @@
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTabWidget, QVBoxLayout, QWidget
+
+from raven.chess_game import ChessWidget
+from raven.snake import SnakeWidget
+from raven.tictactoe import TicTacToeWidget
+from raven.ui import make_title
 
 
 class GamesWindow(QWidget):
@@ -8,16 +13,24 @@ class GamesWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Raven — Games")
-        self.resize(520, 320)
+        self.resize(640, 640)
+
         layout = QVBoxLayout(self)
-        title = QLabel("Games")
-        title_font = title.font()
-        title_font.setPointSize(16)
-        title.setFont(title_font)
-        layout.addWidget(title)
-        layout.addWidget(QLabel("The game screen will go here."))
-        layout.addWidget(QLabel("This screen is not connected yet."))
+        header = QHBoxLayout()
         back = QPushButton("Back")
         back.clicked.connect(self.back_requested.emit)
-        layout.addWidget(back)
-        layout.addStretch(1)
+        header.addWidget(make_title("Games"))
+        header.addStretch(1)
+        header.addWidget(back)
+        layout.addLayout(header)
+
+        self.snake = SnakeWidget()
+        self.tabs = QTabWidget()
+        self.tabs.addTab(TicTacToeWidget(), "Tic-Tac-Toe")
+        self.tabs.addTab(ChessWidget(), "Chess")
+        self.tabs.addTab(self.snake, "Snake")
+        self.tabs.currentChanged.connect(lambda _index: self.snake.pause())
+        layout.addWidget(self.tabs, stretch=1)
+
+    def on_leave(self):
+        self.snake.pause()

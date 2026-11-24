@@ -1,33 +1,13 @@
-from PySide6.QtCore import Qt, QThread, QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QPushButton,
-    QSlider,
-    QVBoxLayout,
-    QWidget,
+    QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton,
+    QSlider, QTabWidget, QVBoxLayout, QWidget,
 )
 
+from raven.catalog import FEATURED_TRACKS
 from raven.music_api import search_songs
-
-
-class SearchWorker(QThread):
-    succeeded = Signal(list)
-    failed = Signal(str)
-
-    def __init__(self, term):
-        super().__init__()
-        self.term = term
-
-    def run(self):
-        try:
-            self.succeeded.emit(search_songs(self.term))
-        except Exception as error:
-            self.failed.emit(str(error))
+from raven.ui import FunctionWorker, format_clock, make_title
 
 
 class MusicWindow(QWidget):
@@ -36,75 +16,103 @@ class MusicWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.search_worker = None
+        self.active_list = None
         self.setWindowTitle("Raven — Music")
-        self.resize(720, 640)
+        self.resize(720, 660)
 
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
         self.player.setAudioOutput(self.audio)
-        self.audio.setVolume(1.0)
+        self.audio.setVolume(0.8)
 
         layout = QVBoxLayout(self)
         header = QHBoxLayout()
-        title = QLabel("Music")
-        title_font = title.font()
-        title_font.setPointSize(16)
-        title.setFont(title_font)
         back = QPushButton("Back")
         back.clicked.connect(self.back_requested.emit)
-        header.addWidget(title)
+        header.addWidget(make_title("Music"))
         header.addStretch(1)
         header.addWidget(back)
         layout.addLayout(header)
-        layout.addWidget(QLabel("Search calls the iTunes API. Play stays in this window."))
 
-        search_row = QHBoxLayout()
+        self.music_status = QLabel("Pick a featured track or search iTunes (30-second previews).")
+        layout.addWidget(self.music_status)
+
+        tabs = QTabWidget()
+        tabs.addTab(self._build_featured_tab(), "Featured")
+        tabs.addTab(self._build_search_tab(), "Search iTunes")
+        layout.addWidget(tabs, stretch=1)
+
+        self.now_playing = QLabel("Now playing: —")
+        layout.addWidget(self.now_playing)
+        layout.addLayout(self._build_controls())
+
+        self.player.positionChanged.connect(self._on_position)
+        self.player.durationChanged.connect(self._on_duration)
+        self.player.playbackStateChanged.connect(self._on_state)
+        self.player.mediaStatusChanged.connect(self._on_media_status)
+        self.player.errorOccurred.connect(lambda _e, m: self.music_status.setText(f"Playback failed: {m}"))
+
+    # ---------- UI builders ----------
+    def _build_featured_tab(self):
+        self.featured_list = QListWidget()
+        for track in FEATURED_TRACKS:
+            item = QListWidgetItem(f"{track['title']} — {track['subtitle']}")
+            item.setData(Qt.ItemDataRole.UserRole, track["url"])
+            item.setData(Qt.ItemDataRole.UserRole + 1, track["title"])
+            self.featured_list.addItem(item)
+        self.featured_list.setCurrentRow(0)
+        self.featured_list.itemDoubleClicked.connect(lambda item: self._play_item(self.featured_list, item))
+        return self.featured_list
+
+    def _build_search_tab(self):
+        page = QWidget()
+        box = QVBoxLayout(page)
+        row = QHBoxLayout()
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Song, artist, or album")
         self.search_box.returnPressed.connect(self._start_search)
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self._start_search)
-        search_row.addWidget(self.search_box, stretch=1)
-        search_row.addWidget(self.search_button)
-        layout.addLayout(search_row)
-
-        self.music_status = QLabel("No search yet.")
-        layout.addWidget(self.music_status)
-
+        row.addWidget(self.search_box, stretch=1)
+        row.addWidget(self.search_button)
+        box.addLayout(row)
         self.results = QListWidget()
-        self.results.itemDoubleClicked.connect(lambda _item: self._play_selected())
-        layout.addWidget(self.results, stretch=1)
+        self.results.itemDoubleClicked.connect(lambda item: self._play_item(self.results, item))
+        box.addWidget(self.results)
+        return page
 
-        self.now_playing = QLabel("Now playing: —")
-        layout.addWidget(self.now_playing)
-
-        controls = QHBoxLayout()
-        play_button = QPushButton("Play")
-        pause_button = QPushButton("Pause")
+    def _build_controls(self):
+        box = QVBoxLayout()
+        row = QHBoxLayout()
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self._toggle_play)
         stop_button = QPushButton("Stop")
-        play_button.clicked.connect(self._play_selected)
-        pause_button.clicked.connect(self.player.pause)
-        stop_button.clicked.connect(self._stop)
-        controls.addWidget(play_button)
-        controls.addWidget(pause_button)
-        controls.addWidget(stop_button)
-        controls.addStretch(1)
-        layout.addLayout(controls)
+        stop_button.clicked.connect(self.stop_playback)
+        volume = QSlider(Qt.Orientation.Horizontal)
+        volume.setRange(0, 100)
+        volume.setValue(80)
+        volume.setFixedWidth(110)
+        volume.valueChanged.connect(lambda v: self.audio.setVolume(v / 100))
+        row.addWidget(self.play_button)
+        row.addWidget(stop_button)
+        row.addStretch(1)
+        row.addWidget(QLabel("Volume"))
+        row.addWidget(volume)
+        box.addLayout(row)
 
         time_row = QHBoxLayout()
         self.position_slider = QSlider(Qt.Orientation.Horizontal)
         self.position_slider.setRange(0, 0)
-        self.position_slider.sliderReleased.connect(self._seek)
+        self.position_slider.sliderReleased.connect(
+            lambda: self.player.setPosition(self.position_slider.value())
+        )
         self.time_label = QLabel("0:00 / 0:00")
         time_row.addWidget(self.position_slider, stretch=1)
         time_row.addWidget(self.time_label)
-        layout.addLayout(time_row)
+        box.addLayout(time_row)
+        return box
 
-        self.player.positionChanged.connect(self._on_position)
-        self.player.durationChanged.connect(self._on_duration)
-        self.player.playbackStateChanged.connect(lambda _state: self._update_time_label())
-        self.player.errorOccurred.connect(self._on_player_error)
-
+    # ---------- search ----------
     def _start_search(self):
         term = self.search_box.text().strip()
         if not term:
@@ -114,9 +122,9 @@ class MusicWindow(QWidget):
             return
         self.search_button.setEnabled(False)
         self.music_status.setText("Calling the iTunes API...")
-        self.search_worker = SearchWorker(term)
+        self.search_worker = FunctionWorker(search_songs, term)
         self.search_worker.succeeded.connect(self._show_results)
-        self.search_worker.failed.connect(self._search_failed)
+        self.search_worker.failed.connect(lambda m: self.music_status.setText(f"The music API did not answer: {m}"))
         self.search_worker.finished.connect(lambda: self.search_button.setEnabled(True))
         self.search_worker.start()
 
@@ -130,53 +138,64 @@ class MusicWindow(QWidget):
             self.results.addItem(item)
         if songs:
             self.results.setCurrentRow(0)
-            self.music_status.setText(f"{len(songs)} songs from the API. Double-click one, or press Play.")
-        else:
-            self.music_status.setText("The API returned no playable songs for that search.")
+        self.music_status.setText(
+            f"{len(songs)} songs found. Double-click one to play." if songs else "No playable songs for that search."
+        )
 
-    def _search_failed(self, message):
-        self.music_status.setText(f"The music API did not answer: {message}")
-
-    def _play_selected(self):
-        item = self.results.currentItem()
-        if item is None:
-            self.music_status.setText("Search first, then choose a song.")
-            return
+    # ---------- playback ----------
+    def _play_item(self, source_list, item):
+        self.active_list = source_list
         self.now_playing.setText(f"Now playing: {item.data(Qt.ItemDataRole.UserRole + 1)}")
-        self.music_status.setText("Playing the API audio in this window.")
+        self.music_status.setText("Playing in this window.")
         self.player.setSource(QUrl(item.data(Qt.ItemDataRole.UserRole)))
         self.player.play()
 
-    def _stop(self):
+    def _toggle_play(self):
+        state = self.player.playbackState()
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            self.player.pause()
+        elif state == QMediaPlayer.PlaybackState.PausedState:
+            self.player.play()
+        else:
+            source_list = self.active_list or self.featured_list
+            item = source_list.currentItem()
+            if item is None:
+                self.music_status.setText("Pick a song first.")
+                return
+            self._play_item(source_list, item)
+
+    def stop_playback(self):
         self.player.stop()
         self.now_playing.setText("Now playing: —")
         self.position_slider.setValue(0)
 
-    def _seek(self):
-        self.player.setPosition(self.position_slider.value())
+    on_leave = stop_playback
+
+    def _on_media_status(self, status):
+        # auto-advance to the next song in the list that is playing
+        if status == QMediaPlayer.MediaStatus.EndOfMedia and self.active_list is not None:
+            row = self.active_list.currentRow() + 1
+            if row < self.active_list.count():
+                self.active_list.setCurrentRow(row)
+                self._play_item(self.active_list, self.active_list.item(row))
+
+    def _on_state(self, state):
+        self.play_button.setText("Pause" if state == QMediaPlayer.PlaybackState.PlayingState else "Play")
 
     def _on_position(self, position):
         if not self.position_slider.isSliderDown():
             self.position_slider.setValue(position)
-        self._update_time_label()
+        self._update_time()
 
     def _on_duration(self, duration):
         self.position_slider.setRange(0, max(duration, 0))
-        self._update_time_label()
+        self._update_time()
 
-    def _update_time_label(self):
-        self.time_label.setText(f"{_clock(self.player.position())} / {_clock(self.player.duration())}")
-
-    def _on_player_error(self, _error, message):
-        self.music_status.setText(f"Playback failed: {message}")
+    def _update_time(self):
+        self.time_label.setText(f"{format_clock(self.player.position())} / {format_clock(self.player.duration())}")
 
     def closeEvent(self, event):
-        self._stop()
+        self.stop_playback()
         if self.search_worker and self.search_worker.isRunning():
             self.search_worker.wait(2000)
         super().closeEvent(event)
-
-
-def _clock(milliseconds):
-    total_seconds = max(int(milliseconds or 0) // 1000, 0)
-    return f"{total_seconds // 60}:{total_seconds % 60:02d}"

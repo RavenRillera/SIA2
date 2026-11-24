@@ -19,37 +19,37 @@ class Application:
         self.music_window = MusicWindow()
         self.games_window = GamesWindow()
         self.windows = (
-            self.login_window,
-            self.signup_window,
-            self.home_window,
-            self.video_window,
-            self.music_window,
-            self.games_window,
+            self.login_window, self.signup_window, self.home_window,
+            self.video_window, self.music_window, self.games_window,
         )
 
-        self.login_window.signup_requested.connect(lambda: self.show_window(self.signup_window))
+        show = self.show_window
+        self.login_window.signup_requested.connect(lambda: show(self.signup_window))
         self.login_window.login_successful.connect(self.open_home)
-        self.signup_window.login_requested.connect(lambda: self.show_window(self.login_window))
+        self.signup_window.login_requested.connect(lambda: show(self.login_window))
         self.signup_window.google_signed_in.connect(self.open_home)
-        self.home_window.video_requested.connect(lambda: self.show_window(self.video_window))
-        self.home_window.music_requested.connect(lambda: self.show_window(self.music_window))
-        self.home_window.games_requested.connect(lambda: self.show_window(self.games_window))
+        self.home_window.video_requested.connect(lambda: show(self.video_window))
+        self.home_window.music_requested.connect(lambda: show(self.music_window))
+        self.home_window.games_requested.connect(lambda: show(self.games_window))
         self.home_window.logout_requested.connect(self.sign_out)
-        self.video_window.back_requested.connect(lambda: self.show_window(self.home_window))
-        self.music_window.back_requested.connect(lambda: self.show_window(self.home_window))
-        self.games_window.back_requested.connect(lambda: self.show_window(self.home_window))
+        for window in (self.video_window, self.music_window, self.games_window):
+            window.back_requested.connect(lambda: show(self.home_window))
 
-    def show_window(self, window):
-        for current_window in self.windows:
-            current_window.hide()
-        window.show()
+    def show_window(self, target):
+        for window in self.windows:
+            if window is target:
+                continue
+            window.hide()
+            # media/games stop automatically when you leave their screen
+            if hasattr(window, "on_leave"):
+                window.on_leave()
+        target.show()
 
     def open_home(self, name):
         self.home_window.set_user(name)
         self.show_window(self.home_window)
 
     def sign_out(self):
-        self.music_window._stop()
         self.login_window.clear_fields()
         self.show_window(self.login_window)
 
