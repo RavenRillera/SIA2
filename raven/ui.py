@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QLabel
 
 def make_title(text, point_size=16):
     label = QLabel(text)
-    label.setObjectName("title")  # ginagamit ng stylesheet
+    label.setObjectName("title")  
     return label
 
 
