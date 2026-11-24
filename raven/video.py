@@ -23,7 +23,7 @@ class VideoWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.search_worker = None
-        self.setWindowTitle("Raven — Video")
+        self.setWindowTitle(" Video")
         self.resize(900, 780)
 
         # --- players: native for the featured MP4s, embedded web view for YouTube search ---

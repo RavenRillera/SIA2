@@ -8,7 +8,7 @@ from raven.login import LoginWindow
 from raven.music import MusicWindow
 from raven.signup import SignUpWindow
 from raven.video import VideoWindow
-
+from raven.theme import DARK_STYLE
 
 class Application:
     def __init__(self):
@@ -56,6 +56,8 @@ class Application:
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")          
+    app.setStyleSheet(DARK_STYLE)   
     application = Application()
     application.show_window(application.login_window)
     sys.exit(app.exec())

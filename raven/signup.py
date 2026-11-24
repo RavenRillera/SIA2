@@ -26,7 +26,7 @@ class SignUpWindow(QWidget):
         self.database = UserDatabase()
         self.login_worker = None
         self.verification_url = ""
-        self.setWindowTitle("Raven")
+        self.setWindowTitle("Media & Entertainment")
         self.resize(460, 560)
 
         layout = QVBoxLayout(self)

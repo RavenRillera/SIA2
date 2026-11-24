@@ -17,7 +17,7 @@ class MusicWindow(QWidget):
         super().__init__()
         self.search_worker = None
         self.active_list = None
-        self.setWindowTitle("Raven — Music")
+        self.setWindowTitle("Music")
         self.resize(720, 660)
 
         self.player = QMediaPlayer(self)

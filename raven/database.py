@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+GOOGLE_MARKER = "!google"  
 ITERATIONS = 310_000
 
 
@@ -16,6 +17,7 @@ class UserDatabase:
             database_path = data_directory / "users.db"
         self.database_path = Path(database_path)
         self.create_table()
+        
 
     @contextmanager
     def connect(self):
@@ -42,6 +44,7 @@ class UserDatabase:
                     salt TEXT NOT NULL
                 )
                 """
+                
             )
 
     @staticmethod

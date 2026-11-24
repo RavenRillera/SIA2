@@ -10,11 +10,11 @@ class HomeWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Raven")
+        self.setWindowTitle("Media & Entertainment")
         self.resize(420, 360)
 
         layout = QVBoxLayout(self)
-        title = QLabel("Raven")
+        title = QLabel("Media & Entertainment")
         title_font = title.font()
         title_font.setPointSize(16)
         title.setFont(title_font)
