@@ -1,6 +1,9 @@
-from PySide6.QtCore import Qt, QUrl, Signal
+import json
+
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton,
@@ -23,16 +26,23 @@ class VideoWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.search_worker = None
+        self.youtube_active = False   # True while a YouTube video is loaded
+        self.youtube_playing = False  # our best guess of its play/pause state
+        self.volume = 80              # 0-100, shared by both players
         self.setWindowTitle(" Video")
         self.resize(900, 780)
 
-        # --- players: native for the featured MP4s, embedded web view for YouTube search ---
+        # --- players: native for the featured MP4s, embedded web view for YouTube ---
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
         self.player.setAudioOutput(self.audio)
         self.video_widget = QVideoWidget()
         self.player.setVideoOutput(self.video_widget)
         self.web_view = QWebEngineView()
+        # let the YouTube embed start playing without an extra click
+        self.web_view.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
+        )
         self.web_view.setHtml(PLACEHOLDER_HTML)
         self.stage = QStackedWidget()
         self.stage.addWidget(self.web_view)
@@ -77,24 +87,25 @@ class VideoWindow(QWidget):
             lambda: self.player.setPosition(self.position_slider.value())
         )
         self.time_label = QLabel("0:00 / 0:00")
-        volume = QSlider(Qt.Orientation.Horizontal)
-        volume.setRange(0, 100)
-        volume.setValue(80)
-        volume.setFixedWidth(90)
-        volume.valueChanged.connect(lambda v: self.audio.setVolume(v / 100))
-        self.audio.setVolume(0.8)
+        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(self.volume)
+        self.volume_slider.setFixedWidth(90)
+        self.volume_slider.valueChanged.connect(self._on_volume)
+        self.audio.setVolume(self.volume / 100)
         for widget in (self.play_button, stop_button):
             row.addWidget(widget)
         row.addWidget(self.position_slider, stretch=1)
         row.addWidget(self.time_label)
         row.addWidget(QLabel("Vol"))
-        row.addWidget(volume)
+        row.addWidget(self.volume_slider)
         return row
 
     def _build_featured_tab(self):
         self.featured_list = QListWidget()
         for video in FEATURED_VIDEOS:
             item = QListWidgetItem(f"{video['title']} — {video['subtitle']}")
+            # a "kind" key in catalog.py (e.g. "youtube") overrides the default "file"
             item.setData(Qt.ItemDataRole.UserRole, {"kind": "file", **video})
             self.featured_list.addItem(item)
         self.featured_list.itemClicked.connect(self._play_item)
@@ -147,6 +158,8 @@ class VideoWindow(QWidget):
     def _play_item(self, item):
         data = item.data(Qt.ItemDataRole.UserRole)
         if data["kind"] == "file":
+            self.youtube_active = False
+            self.youtube_playing = False
             self.web_view.setHtml(PLACEHOLDER_HTML)  # unload any YouTube iframe
             self.stage.setCurrentWidget(self.video_widget)
             self.player.setSource(QUrl(data["url"]))
@@ -154,26 +167,65 @@ class VideoWindow(QWidget):
             self.status_label.setText(f"Playing: {data['title']}")
         else:
             self.player.stop()
+            self.position_slider.setValue(0)
+            self.time_label.setText("0:00 / 0:00")
             self.stage.setCurrentWidget(self.web_view)
             self._play_youtube(data["video_id"])
             self.status_label.setText(f"Playing: {data['title']}")
 
     def _play_youtube(self, video_id):
-        embed_url = f"https://www.youtube-nocookie.com/embed/{video_id}?autoplay=1&rel=0"
+        # enablejsapi=1 lets us send play/pause/volume commands to the player
+        embed_url = (
+            f"https://www.youtube-nocookie.com/embed/{video_id}"
+            "?autoplay=1&rel=0&enablejsapi=1"
+            "&origin=https://www.youtube-nocookie.com"
+        )
         html = (
             "<!DOCTYPE html><html><head><style>"
             "html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}"
             "iframe{width:100%;height:100%;border:none}</style></head><body>"
-            f'<iframe src="{embed_url}" allow="autoplay; encrypted-media; fullscreen" '
-            "allowfullscreen></iframe></body></html>"
+            f'<iframe id="player" src="{embed_url}" '
+            'allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'
+            "</body></html>"
         )
         # A real https base URL gives YouTube a valid referrer (avoids the embed error
         # you can get with a "localhost" origin).
         self.web_view.setHtml(html, QUrl("https://www.youtube-nocookie.com"))
+        self.youtube_active = True
+        self.youtube_playing = True
+        self.play_button.setText("Pause")
+        # the player needs a moment to start; then apply the slider's volume
+        QTimer.singleShot(2000, self._apply_youtube_volume)
+
+    def _youtube_command(self, command, args=""):
+        """Send a command (playVideo, pauseVideo, setVolume...) to the YouTube iframe."""
+        message = json.dumps({"event": "command", "func": command, "args": args})
+        js = (
+            "var p = document.getElementById('player');"
+            f"if (p) p.contentWindow.postMessage({json.dumps(message)}, '*');"
+        )
+        self.web_view.page().runJavaScript(js)
+
+    def _apply_youtube_volume(self):
+        if self.youtube_active:
+            self._youtube_command("setVolume", [self.volume])
+
+    def _on_volume(self, value):
+        self.volume = value
+        self.audio.setVolume(value / 100)   # MP4 player
+        self._apply_youtube_volume()        # YouTube player
 
     def _toggle_play(self):
-        if self.stage.currentWidget() is not self.video_widget:
+        # YouTube video: send a command to the web page
+        if self.stage.currentWidget() is self.web_view:
+            if not self.youtube_active:
+                return
+            self.youtube_playing = not self.youtube_playing
+            self._youtube_command("playVideo" if self.youtube_playing else "pauseVideo")
+            self.play_button.setText("Pause" if self.youtube_playing else "Play")
             return
+
+        # Featured MP4: use the native player
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.player.pause()
         elif self.player.source().isValid():
@@ -183,15 +235,21 @@ class VideoWindow(QWidget):
             self._play_item(item)
 
     def stop_playback(self):
+        self.youtube_active = False
+        self.youtube_playing = False
         self.player.stop()
         self.player.setSource(QUrl())
         self.web_view.setHtml(PLACEHOLDER_HTML)
         self.stage.setCurrentWidget(self.web_view)
         self.position_slider.setValue(0)
+        self.time_label.setText("0:00 / 0:00")
+        self.play_button.setText("Play")
 
     on_leave = stop_playback
 
     def _on_state(self, state):
+        if self.youtube_active:
+            return  # the button label belongs to the YouTube player right now
         playing = state == QMediaPlayer.PlaybackState.PlayingState
         self.play_button.setText("Pause" if playing else "Play")
 

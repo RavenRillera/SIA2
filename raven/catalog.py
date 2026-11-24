@@ -13,6 +13,8 @@ FEATURED_VIDEOS = [
      "url": "https://media.w3.org/2010/05/sintel/trailer.mp4"},
     {"title": "Big Buck Bunny (10s)", "subtitle": "Test Videos",
      "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"},
+    {"kind": "youtube", "title": "My Short", "subtitle": "YouTube",
+     "video_id": "h3tl9pKJJnw"},
 ]
 
 FEATURED_TRACKS = [
