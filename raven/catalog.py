@@ -5,16 +5,14 @@ Music is royalty-free SoundHelix demo tracks, played natively inside Raven.
 """
 
 FEATURED_VIDEOS = [
-    {"title": "Big Buck Bunny", "subtitle": "Blender Foundation",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"},
-    {"title": "Elephants Dream", "subtitle": "Blender Foundation",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"},
-    {"title": "Sintel", "subtitle": "Blender Foundation",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"},
-    {"title": "Tears of Steel", "subtitle": "Blender Foundation",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"},
-    {"title": "For Bigger Fun", "subtitle": "Google sample",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"},
+    {"title": "Big Buck Bunny (Short)", "subtitle": "W3Schools sample",
+     "url": "https://www.w3schools.com/html/mov_bbb.mp4"},
+    {"title": "Flower", "subtitle": "MDN sample (CC0)",
+     "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"},
+    {"title": "Sintel Trailer", "subtitle": "Blender Foundation",
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4"},
+    {"title": "Big Buck Bunny (10s)", "subtitle": "Test Videos",
+     "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"},
 ]
 
 FEATURED_TRACKS = [
