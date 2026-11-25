@@ -1,3 +1,4 @@
+
 import json
 
 import PySide6
@@ -32,7 +33,7 @@ iframe{width:100%;height:100%;border:none}
   allow="autoplay; encrypted-media" allowfullscreen></iframe>
 </body></html>"""
 
-# JavaScript na tumatakbo MISMO sa loob ng YouTube frame at kumukuha/nag-uutos sa <video> element.
+# JavaScript that gets the video information from the YouTube player.
 YT_STATE_JS = (
     "(function(){var v=document.querySelector('video');"
     "if(!v){return 'null';}"
@@ -46,26 +47,26 @@ class VideoWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.search_worker = None
-        self.youtube_active = False   # True while a YouTube video is loaded
-        self.youtube_playing = False  # our best guess of its play/pause state
+        self.youtube_active = False   # True when a YouTube video is loaded
+        self.youtube_playing = False  # Tracks the YouTube play/pause state
         self.youtube_error_shown = False
-        self.youtube_misses = 0       # ilang beses nang walang sagot ang YouTube player
-        self.youtube_debug = ""       # dahilan kung bakit walang sagot (lumalabas sa status)
-        self.youtube_timer = QTimer(self)  # tinatanong ang YouTube player kung nasaan na ang video
+        self.youtube_misses = 0       # Counts failed responses from YouTube
+        self.youtube_debug = ""       # Stores the reason for missing responses
+        self.youtube_timer = QTimer(self)  # Checks the YouTube player regularly
         self.youtube_timer.setInterval(500)
         self.youtube_timer.timeout.connect(self._poll_youtube)
-        self.volume = 80              # 0-100, shared by both players
+        self.volume = 80              # Shared volume for both players
         self.setWindowTitle("Movies and TV Shows")
         self.resize(900, 780)
 
-        # --- players: native for the featured MP4s, embedded web view for YouTube ---
+        # Set up the players: native player for MP4 files and web view for YouTube
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
         self.player.setAudioOutput(self.audio)
         self.video_widget = QVideoWidget()
         self.player.setVideoOutput(self.video_widget)
         self.web_view = QWebEngineView()
-        # let the YouTube embed start playing without an extra click
+        # Allow YouTube videos to play automatically
         self.web_view.settings().setAttribute(
             QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False
         )
@@ -138,13 +139,13 @@ class VideoWindow(QWidget):
         return page
 
     def _refresh_featured(self):
-        """Built-in videos first, then the ones you added (marked with a star)."""
+        """Show built-in videos first, followed by added videos marked with a star."""
         entries = [(x, False) for x in FEATURED_VIDEOS] + [(x, True) for x in featured_store.load("videos")]
         self.featured_list.clear()
         for video, custom in entries:
             star = "★ " if custom else ""
             item = QListWidgetItem(f"{star}{video['title']} — {video['subtitle']}")
-            # a "kind" key (e.g. "youtube") overrides the default "file"
+            # The "kind" key identifies the video type. The default type is "file".
             item.setData(Qt.ItemDataRole.UserRole, {"kind": "file", **video, "custom": custom})
             self.featured_list.addItem(item)
 
@@ -168,7 +169,7 @@ class VideoWindow(QWidget):
         box.addWidget(add_button)
         return page
 
-    # ---------- search ----------
+    # ---------- Search ----------
     def _start_search(self):
         term = self.search_box.text().strip()
         if not term:
@@ -194,7 +195,7 @@ class VideoWindow(QWidget):
             f"{len(videos)} videos found. Click one to play it here." if videos else "No videos found."
         )
 
-    # ---------- featured management ----------
+    # ---------- Featured video management ----------
     def _add_to_featured(self):
         item = self.results.currentItem()
         if item is None:
@@ -220,14 +221,14 @@ class VideoWindow(QWidget):
         self._refresh_featured()
         self.status_label.setText("Removed from Featured.")
 
-    # ---------- playback ----------
+    # ---------- Video playback ----------
     def _play_item(self, item):
         data = item.data(Qt.ItemDataRole.UserRole)
         if data["kind"] == "file":
             self.youtube_active = False
             self.youtube_playing = False
             self.youtube_timer.stop()
-            self.web_view.setHtml(PLACEHOLDER_HTML)  # unload any YouTube iframe
+            self.web_view.setHtml(PLACEHOLDER_HTML)  # Close the YouTube video
             self.stage.setCurrentWidget(self.video_widget)
             self.player.setSource(QUrl(data["url"]))
             self.player.play()
@@ -242,8 +243,7 @@ class VideoWindow(QWidget):
 
     def _play_youtube(self, video_id):
         html = YOUTUBE_PAGE.replace("__VIDEO_ID__", video_id)
-        # A real https base URL gives YouTube a valid referrer (avoids the embed error
-        # you can get with a "localhost" origin).
+        # Use an HTTPS base URL so YouTube can recognize the page correctly.
         self.web_view.setHtml(html, QUrl("https://www.youtube-nocookie.com"))
         self.youtube_active = True
         self.youtube_playing = True
@@ -255,19 +255,19 @@ class VideoWindow(QWidget):
         QTimer.singleShot(2500, self._apply_youtube_volume)
 
     def _youtube_frame(self):
-        """Hinahanap ang iframe ng YouTube sa loob ng web view."""
+        """Find the YouTube iframe inside the web view."""
         try:
             for frame in self.web_view.page().mainFrame().children():
                 if frame.isValid() and "youtube" in frame.url().toString():
                     return frame
-        except AttributeError:  # lumang PySide6 na walang QWebEngineFrame
+        except AttributeError:  # Handle older PySide6 versions without QWebEngineFrame
             self.youtube_debug = f"PySide6 {PySide6.__version__} is too old; run: python -m pip install -U PySide6"
             return None
         self.youtube_debug = "YouTube frame not found in the page"
         return None
 
     def _youtube_js(self, code, callback=None):
-        """Pinapatakbo ang JavaScript sa loob mismo ng YouTube frame."""
+        """Run JavaScript inside the YouTube frame."""
         frame = self._youtube_frame()
         if frame is None:
             return False
@@ -293,12 +293,12 @@ class VideoWindow(QWidget):
         self._on_youtube_state(state)
 
     def _on_youtube_state(self, state):
-        """Tinatanggap ang [oras, haba, estado, error] galing sa YouTube player."""
+        """Update the video controls using the YouTube player's information."""
         if not self.youtube_active:
             return
         if not state:
             self.youtube_misses += 1
-            if self.youtube_misses == 16 and not self.youtube_error_shown:  # mga 8 segundo
+            if self.youtube_misses == 16 and not self.youtube_error_shown:  # About 8 seconds
                 self.status_label.setText(
                     f"The app can't reach the YouTube player, so the progress bar can't update. ({self.youtube_debug or 'no reason recorded'})"
                 )
@@ -325,11 +325,11 @@ class VideoWindow(QWidget):
 
     def _on_volume(self, value):
         self.volume = value
-        self.audio.setVolume(value / 100)   # MP4 player
-        self._apply_youtube_volume()        # YouTube player
+        self.audio.setVolume(value / 100)   # Set MP4 player volume
+        self._apply_youtube_volume()        # Set YouTube player volume
 
     def _toggle_play(self):
-        # YouTube video: send a command to the web page
+        # Control playback for YouTube videos
         if self.stage.currentWidget() is self.web_view:
             if not self.youtube_active:
                 return
@@ -339,7 +339,7 @@ class VideoWindow(QWidget):
             self.play_button.setText("Pause" if self.youtube_playing else "Play")
             return
 
-        # Featured MP4: use the native player
+        # Control playback for featured MP4 videos
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.player.pause()
         elif self.player.source().isValid():
@@ -367,7 +367,7 @@ class VideoWindow(QWidget):
 
     def _on_state(self, state):
         if self.youtube_active:
-            return  # the button label belongs to the YouTube player right now
+            return  # The play button is controlled by the YouTube player
         playing = state == QMediaPlayer.PlaybackState.PlayingState
         self.play_button.setText("Pause" if playing else "Play")
 
