@@ -1,5 +1,7 @@
 import json
 
+import PySide6
+
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -12,12 +14,29 @@ from PySide6.QtWidgets import (
 
 from SIA import featured_store
 from SIA.catalog import FEATURED_VIDEOS
-from SIA.ui import FunctionWorker, format_clock, make_title
+from SIA.ui import FunctionWorker, SeekSlider, format_clock, make_title
 from SIA.video_api import search_videos
 
 PLACEHOLDER_HTML = (
     "<html><body style='background:#202020;color:#ddd;font-family:sans-serif;"
     "display:grid;place-items:center'>Select a video to play it here.</body></html>"
+)
+
+
+YOUTUBE_PAGE = """<!DOCTYPE html><html><head><style>
+html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
+iframe{width:100%;height:100%;border:none}
+</style></head><body>
+<iframe id="player"
+  src="https://www.youtube-nocookie.com/embed/__VIDEO_ID__?autoplay=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&modestbranding=1&iv_load_policy=3&origin=https://www.youtube-nocookie.com"
+  allow="autoplay; encrypted-media" allowfullscreen></iframe>
+</body></html>"""
+
+# JavaScript na tumatakbo MISMO sa loob ng YouTube frame at kumukuha/nag-uutos sa <video> element.
+YT_STATE_JS = (
+    "(function(){var v=document.querySelector('video');"
+    "if(!v){return 'null';}"
+    "return JSON.stringify([v.currentTime||0,(isFinite(v.duration)?v.duration:0),v.paused?2:1,0]);})()"
 )
 
 
@@ -29,6 +48,12 @@ class VideoWindow(QWidget):
         self.search_worker = None
         self.youtube_active = False   # True while a YouTube video is loaded
         self.youtube_playing = False  # our best guess of its play/pause state
+        self.youtube_error_shown = False
+        self.youtube_misses = 0       # ilang beses nang walang sagot ang YouTube player
+        self.youtube_debug = ""       # dahilan kung bakit walang sagot (lumalabas sa status)
+        self.youtube_timer = QTimer(self)  # tinatanong ang YouTube player kung nasaan na ang video
+        self.youtube_timer.setInterval(500)
+        self.youtube_timer.timeout.connect(self._poll_youtube)
         self.volume = 80              # 0-100, shared by both players
         self.setWindowTitle("Movies and TV Shows")
         self.resize(900, 780)
@@ -82,11 +107,9 @@ class VideoWindow(QWidget):
         self.play_button.clicked.connect(self._toggle_play)
         stop_button = QPushButton("Stop")
         stop_button.clicked.connect(self.stop_playback)
-        self.position_slider = QSlider(Qt.Orientation.Horizontal)
+        self.position_slider = SeekSlider()
         self.position_slider.setRange(0, 0)
-        self.position_slider.sliderReleased.connect(
-            lambda: self.player.setPosition(self.position_slider.value())
-        )
+        self.position_slider.seek_requested.connect(self._seek)
         self.time_label = QLabel("0:00 / 0:00")
         self.volume_slider = QSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
@@ -203,6 +226,7 @@ class VideoWindow(QWidget):
         if data["kind"] == "file":
             self.youtube_active = False
             self.youtube_playing = False
+            self.youtube_timer.stop()
             self.web_view.setHtml(PLACEHOLDER_HTML)  # unload any YouTube iframe
             self.stage.setCurrentWidget(self.video_widget)
             self.player.setSource(QUrl(data["url"]))
@@ -217,41 +241,87 @@ class VideoWindow(QWidget):
             self.status_label.setText(f"Playing: {data['title']}")
 
     def _play_youtube(self, video_id):
-        # enablejsapi=1 lets us send play/pause/volume commands to the player
-        embed_url = (
-            f"https://www.youtube-nocookie.com/embed/{video_id}"
-            "?autoplay=1&rel=0&enablejsapi=1"
-            "&origin=https://www.youtube-nocookie.com"
-        )
-        html = (
-            "<!DOCTYPE html><html><head><style>"
-            "html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}"
-            "iframe{width:100%;height:100%;border:none}</style></head><body>"
-            f'<iframe id="player" src="{embed_url}" '
-            'allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'
-            "</body></html>"
-        )
+        html = YOUTUBE_PAGE.replace("__VIDEO_ID__", video_id)
         # A real https base URL gives YouTube a valid referrer (avoids the embed error
         # you can get with a "localhost" origin).
         self.web_view.setHtml(html, QUrl("https://www.youtube-nocookie.com"))
         self.youtube_active = True
         self.youtube_playing = True
+        self.youtube_error_shown = False
+        self.youtube_misses = 0
+        self.position_slider.setRange(0, 0)
         self.play_button.setText("Pause")
-        # the player needs a moment to start; then apply the slider's volume
-        QTimer.singleShot(2000, self._apply_youtube_volume)
+        self.youtube_timer.start()
+        QTimer.singleShot(2500, self._apply_youtube_volume)
 
-    def _youtube_command(self, command, args=""):
-        """Send a command (playVideo, pauseVideo, setVolume...) to the YouTube iframe."""
-        message = json.dumps({"event": "command", "func": command, "args": args})
-        js = (
-            "var p = document.getElementById('player');"
-            f"if (p) p.contentWindow.postMessage({json.dumps(message)}, '*');"
-        )
-        self.web_view.page().runJavaScript(js)
+    def _youtube_frame(self):
+        """Hinahanap ang iframe ng YouTube sa loob ng web view."""
+        try:
+            for frame in self.web_view.page().mainFrame().children():
+                if frame.isValid() and "youtube" in frame.url().toString():
+                    return frame
+        except AttributeError:  # lumang PySide6 na walang QWebEngineFrame
+            self.youtube_debug = f"PySide6 {PySide6.__version__} is too old; run: python -m pip install -U PySide6"
+            return None
+        self.youtube_debug = "YouTube frame not found in the page"
+        return None
+
+    def _youtube_js(self, code, callback=None):
+        """Pinapatakbo ang JavaScript sa loob mismo ng YouTube frame."""
+        frame = self._youtube_frame()
+        if frame is None:
+            return False
+        if callback is None:
+            frame.runJavaScript(code, 0, lambda _result: None)
+        else:
+            frame.runJavaScript(code, 0, callback)
+        return True
+
+    def _poll_youtube(self):
+        if not self.youtube_active:
+            return
+        if not self._youtube_js(YT_STATE_JS, self._on_youtube_result):
+            self._on_youtube_state(None)
+
+    def _on_youtube_result(self, result):
+        try:
+            state = json.loads(result) if result else None
+        except (TypeError, ValueError):
+            state = None
+        if state is None:
+            self.youtube_debug = "frame found but it has no video element yet" if result == "null" else "frame gave no answer"
+        self._on_youtube_state(state)
+
+    def _on_youtube_state(self, state):
+        """Tinatanggap ang [oras, haba, estado, error] galing sa YouTube player."""
+        if not self.youtube_active:
+            return
+        if not state:
+            self.youtube_misses += 1
+            if self.youtube_misses == 16 and not self.youtube_error_shown:  # mga 8 segundo
+                self.status_label.setText(
+                    f"The app can't reach the YouTube player, so the progress bar can't update. ({self.youtube_debug or 'no reason recorded'})"
+                )
+            return
+        self.youtube_misses = 0
+        current, duration, player_state, error = state
+        self.youtube_playing = player_state == 1
+        self.play_button.setText("Pause" if self.youtube_playing else "Play")
+        current_ms, duration_ms = int(current * 1000), int(duration * 1000)
+        self.position_slider.setRange(0, max(duration_ms, 0))
+        if not self.position_slider.dragging:
+            self.position_slider.setValue(current_ms)
+        self.time_label.setText(f"{format_clock(current_ms)} / {format_clock(duration_ms)}")
+
+    def _seek(self, value):
+        if self.youtube_active:
+            self._youtube_js(f"(function(){{var v=document.querySelector('video'); if(v){{v.currentTime={value / 1000};}}}})()")
+        else:
+            self.player.setPosition(value)
 
     def _apply_youtube_volume(self):
         if self.youtube_active:
-            self._youtube_command("setVolume", [self.volume])
+            self._youtube_js(f"(function(){{var v=document.querySelector('video'); if(v){{v.volume={self.volume / 100};}}}})()")
 
     def _on_volume(self, value):
         self.volume = value
@@ -264,7 +334,8 @@ class VideoWindow(QWidget):
             if not self.youtube_active:
                 return
             self.youtube_playing = not self.youtube_playing
-            self._youtube_command("playVideo" if self.youtube_playing else "pauseVideo")
+            action = "play()" if self.youtube_playing else "pause()"
+            self._youtube_js(f"(function(){{var v=document.querySelector('video'); if(v){{v.{action};}}}})()")
             self.play_button.setText("Pause" if self.youtube_playing else "Play")
             return
 
@@ -283,6 +354,7 @@ class VideoWindow(QWidget):
     def stop_playback(self):
         self.youtube_active = False
         self.youtube_playing = False
+        self.youtube_timer.stop()
         self.player.stop()
         self.player.setSource(QUrl())
         self.web_view.setHtml(PLACEHOLDER_HTML)
@@ -300,7 +372,7 @@ class VideoWindow(QWidget):
         self.play_button.setText("Pause" if playing else "Play")
 
     def _on_position(self, position):
-        if not self.position_slider.isSliderDown():
+        if not self.position_slider.dragging:
             self.position_slider.setValue(position)
         self._update_time()
 

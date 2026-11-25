@@ -35,12 +35,12 @@ class MusicWindow(QWidget):
         header.addWidget(back)
         layout.addLayout(header)
 
-        self.music_status = QLabel("Pick a featured track or search iTunes (30-second previews).")
+        self.music_status = QLabel("Pick a featured track or search Music (30-second previews).")
         layout.addWidget(self.music_status)
 
         tabs = QTabWidget()
         tabs.addTab(self._build_featured_tab(), "Featured")
-        tabs.addTab(self._build_search_tab(), "Search iTunes")
+        tabs.addTab(self._build_search_tab(), "Search Music")
         layout.addWidget(tabs, stretch=1)
 
         self.now_playing = QLabel("Now playing: —")

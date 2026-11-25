@@ -12,16 +12,14 @@ class HomeWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Media & Entertainment")
+        self.setWindowTitle("Dashboard")
         self.resize(420, 360)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(make_title("Media & Entertainment"))
+        layout.addWidget(make_title("Dashboard"))
 
         self.account_label = QLabel("Signed in")
         layout.addWidget(self.account_label)
-        layout.addWidget(QLabel("Multimedia"))
-
         video_button = QPushButton("Movies and TV Shows")
         music_button = QPushButton("Music and Audio")
         games_button = QPushButton("Games")
