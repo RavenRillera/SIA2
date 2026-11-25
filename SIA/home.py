@@ -1,6 +1,8 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 
+from SIA.ui import make_title
+
 
 class HomeWindow(QWidget):
     video_requested = Signal()
@@ -14,11 +16,7 @@ class HomeWindow(QWidget):
         self.resize(420, 360)
 
         layout = QVBoxLayout(self)
-        title = QLabel("Media & Entertainment")
-        title_font = title.font()
-        title_font.setPointSize(16)
-        title.setFont(title_font)
-        layout.addWidget(title)
+        layout.addWidget(make_title("Media & Entertainment"))
 
         self.account_label = QLabel("Signed in")
         layout.addWidget(self.account_label)

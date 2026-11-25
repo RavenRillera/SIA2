@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
@@ -58,21 +59,31 @@ class TicTacToeWidget(QWidget):
         layout.addLayout(top)
 
         self.status = QLabel()
+        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_font = self.status.font()
+        status_font.setPointSize(14)
+        self.status.setFont(status_font)
         layout.addWidget(self.status)
+        layout.addStretch(1)
 
         grid = QGridLayout()
         self.cells = []
         for i in range(9):
             button = QPushButton("")
-            button.setMinimumSize(90, 90)
+            button.setFixedSize(130, 130)
             font = button.font()
-            font.setPointSize(28)
+            font.setPointSize(44)
             button.setFont(font)
             button.clicked.connect(lambda _checked=False, index=i: self.play(index))
             grid.addWidget(button, i // 3, i % 3)
             self.cells.append(button)
-        layout.addLayout(grid)
-        layout.addStretch(1)
+        grid.setSpacing(10)
+        board_row = QHBoxLayout()   # nasa gitna ang board, parisukat ang bawat kahon
+        board_row.addStretch(1)
+        board_row.addLayout(grid)
+        board_row.addStretch(1)
+        layout.addLayout(board_row)
+        layout.addStretch(2)
         self.new_game()
 
     def new_game(self):

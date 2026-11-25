@@ -5,6 +5,14 @@ QWidget {
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
+QLabel, QCheckBox { background: transparent; }
+
+QWidget#card {
+    background-color: #1d1f25;
+    border: 1px solid #3a3d46;
+    border-radius: 16px;
+}
+
 QLabel#title {
     font-size: 26px;
     font-weight: 700;
