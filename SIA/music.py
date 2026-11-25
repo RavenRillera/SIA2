@@ -5,9 +5,10 @@ from PySide6.QtWidgets import (
     QSlider, QTabWidget, QVBoxLayout, QWidget,
 )
 
-from raven.catalog import FEATURED_TRACKS
-from raven.music_api import search_songs
-from raven.ui import FunctionWorker, format_clock, make_title
+from SIA import featured_store
+from SIA.catalog import FEATURED_TRACKS
+from SIA.music_api import search_songs
+from SIA.ui import FunctionWorker, format_clock, make_title
 
 
 class MusicWindow(QWidget):
@@ -54,15 +55,30 @@ class MusicWindow(QWidget):
 
     # ---------- UI builders ----------
     def _build_featured_tab(self):
+        page = QWidget()
+        box = QVBoxLayout(page)
         self.featured_list = QListWidget()
-        for track in FEATURED_TRACKS:
-            item = QListWidgetItem(f"{track['title']} — {track['subtitle']}")
+        self.featured_list.itemDoubleClicked.connect(lambda item: self._play_item(self.featured_list, item))
+        box.addWidget(self.featured_list)
+        remove_button = QPushButton("Remove selected from Featured")
+        remove_button.clicked.connect(self._remove_featured)
+        box.addWidget(remove_button)
+        self._refresh_featured()
+        return page
+
+    def _refresh_featured(self):
+        """Built-in tracks first, then the ones you added (marked with a star)."""
+        entries = [(t, False) for t in FEATURED_TRACKS] + [(t, True) for t in featured_store.load("tracks")]
+        self.featured_list.clear()
+        for track, custom in entries:
+            star = "★ " if custom else ""
+            item = QListWidgetItem(f"{star}{track['title']} — {track['subtitle']}")
             item.setData(Qt.ItemDataRole.UserRole, track["url"])
             item.setData(Qt.ItemDataRole.UserRole + 1, track["title"])
+            item.setData(Qt.ItemDataRole.UserRole + 2, custom)
             self.featured_list.addItem(item)
-        self.featured_list.setCurrentRow(0)
-        self.featured_list.itemDoubleClicked.connect(lambda item: self._play_item(self.featured_list, item))
-        return self.featured_list
+        if self.featured_list.count():
+            self.featured_list.setCurrentRow(0)
 
     def _build_search_tab(self):
         page = QWidget()
@@ -79,6 +95,9 @@ class MusicWindow(QWidget):
         self.results = QListWidget()
         self.results.itemDoubleClicked.connect(lambda item: self._play_item(self.results, item))
         box.addWidget(self.results)
+        add_button = QPushButton("★ Add selected song to Featured")
+        add_button.clicked.connect(self._add_to_featured)
+        box.addWidget(add_button)
         return page
 
     def _build_controls(self):
@@ -135,12 +154,38 @@ class MusicWindow(QWidget):
             item = QListWidgetItem(f"{song['title']} — {song['artist']}{album}")
             item.setData(Qt.ItemDataRole.UserRole, song["preview_url"])
             item.setData(Qt.ItemDataRole.UserRole + 1, f"{song['title']} — {song['artist']}")
+            item.setData(Qt.ItemDataRole.UserRole + 3, song)
             self.results.addItem(item)
         if songs:
             self.results.setCurrentRow(0)
         self.music_status.setText(
             f"{len(songs)} songs found. Double-click one to play." if songs else "No playable songs for that search."
         )
+
+    # ---------- featured management ----------
+    def _add_to_featured(self):
+        item = self.results.currentItem()
+        if item is None:
+            self.music_status.setText("Search and select a song first.")
+            return
+        song = item.data(Qt.ItemDataRole.UserRole + 3)
+        entry = {"title": song["title"], "subtitle": song["artist"], "url": song["preview_url"]}
+        if any(t["url"] == entry["url"] for t in FEATURED_TRACKS) or not featured_store.add("tracks", entry):
+            self.music_status.setText(f"\"{entry['title']}\" is already in Featured.")
+            return
+        self._refresh_featured()
+        self.music_status.setText(f"Added \"{entry['title']}\" to Featured.")
+
+    def _remove_featured(self):
+        item = self.featured_list.currentItem()
+        if item is None:
+            return
+        if not item.data(Qt.ItemDataRole.UserRole + 2):
+            self.music_status.setText("Built-in tracks can't be removed here (edit catalog.py).")
+            return
+        featured_store.remove("tracks", {"url": item.data(Qt.ItemDataRole.UserRole)})
+        self._refresh_featured()
+        self.music_status.setText("Removed from Featured.")
 
     # ---------- playback ----------
     def _play_item(self, source_list, item):
@@ -160,7 +205,10 @@ class MusicWindow(QWidget):
             source_list = self.active_list or self.featured_list
             item = source_list.currentItem()
             if item is None:
-                self.music_status.setText("Pick a song first.")
+                if source_list is self.featured_list and source_list.count() == 0:
+                    self.music_status.setText("Featured is empty. Search and add a song first.")
+                else:
+                    self.music_status.setText("Pick a song first.")
                 return
             self._play_item(source_list, item)
 

@@ -1,18 +1,11 @@
-from PySide6.QtCore import QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
+    QCheckBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
-from raven.database import UserDatabase
-from raven.google_oauth import LoginWorker, load_google_config
+from SIA.database import UserDatabase
+from SIA.google_controller import GoogleSignInController
+from SIA.ui import make_title
 
 
 class LoginWindow(QWidget):
@@ -22,17 +15,11 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.database = UserDatabase()
-        self.login_worker = None
-        self.verification_url = ""
-        self.setWindowTitle("Media & Entertainment")
+        self.setWindowTitle("Log in")
         self.resize(420, 360)
 
         layout = QVBoxLayout(self)
-        title = QLabel("Media & Entertainment")
-        title_font = title.font()
-        title_font.setPointSize(16)
-        title.setFont(title_font)
-        layout.addWidget(title)
+        layout.addWidget(make_title("Media & Entertainment"))
         layout.addWidget(QLabel("Log in to open the multimedia menu."))
 
         self.username_input = QLineEdit()
@@ -54,11 +41,12 @@ class LoginWindow(QWidget):
 
         layout.addWidget(QLabel("or sign in with"))
         self.google_button = QPushButton("Google")
-        self.google_button.clicked.connect(self.start_google_sign_in)
         layout.addWidget(self.google_button)
         self.google_status = QLabel("")
         self.google_status.setWordWrap(True)
         layout.addWidget(self.google_status)
+        self.google = GoogleSignInController(self.google_button, self.google_status, self.database, parent=self)
+        self.google.signed_in.connect(self.login_successful.emit)
 
         row = QHBoxLayout()
         row.addWidget(QLabel("Need an account?"))
@@ -91,36 +79,6 @@ class LoginWindow(QWidget):
         self.show_password.setChecked(False)
         self.google_status.clear()
 
-    def start_google_sign_in(self):
-        if self.login_worker and self.login_worker.isRunning():
-            return
-        client_id, client_secret = load_google_config()
-        if not client_id or not client_secret:
-            self.google_status.setText("Google sign-in needs a client id and client secret in oauth_config.json.")
-            return
-        self.google_button.setEnabled(False)
-        self.google_status.setText("Calling Google for sign-in.")
-        self.login_worker = LoginWorker(client_id, client_secret)
-        self.login_worker.message.connect(self.google_status.setText)
-        self.login_worker.browser_ready.connect(self.open_google)
-        self.login_worker.succeeded.connect(self.google_finished)
-        self.login_worker.failed.connect(self.google_failed)
-        self.login_worker.finished.connect(lambda: self.google_button.setEnabled(True))
-        self.login_worker.start()
-
-    def open_google(self, url):
-        self.verification_url = url
-        QDesktopServices.openUrl(QUrl(url))
-
-    def google_finished(self, _token, email):
-        self.google_status.setText(f"Signed in as {email}.")
-        self.login_successful.emit(email)
-
-    def google_failed(self, message):
-        self.google_status.setText(f"Google sign-in failed: {message}")
-
     def closeEvent(self, event):
-        if self.login_worker and self.login_worker.isRunning():
-            self.login_worker.stop()
-            self.login_worker.wait(2000)
+        self.google.stop()
         super().closeEvent(event)

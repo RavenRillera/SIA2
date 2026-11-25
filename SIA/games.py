@@ -1,10 +1,10 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTabWidget, QVBoxLayout, QWidget
 
-from raven.chess_game import ChessWidget
-from raven.snake import SnakeWidget
-from raven.tictactoe import TicTacToeWidget
-from raven.ui import make_title
+from SIA.chess_game import ChessWidget
+from SIA.snake import SnakeWidget
+from SIA.tictactoe import TicTacToeWidget
+from SIA.ui import make_title
 
 
 class GamesWindow(QWidget):

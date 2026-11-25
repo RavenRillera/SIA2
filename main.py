@@ -2,13 +2,13 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from raven.games import GamesWindow
-from raven.home import HomeWindow
-from raven.login import LoginWindow
-from raven.music import MusicWindow
-from raven.signup import SignUpWindow
-from raven.video import VideoWindow
-from raven.theme import DARK_STYLE
+from SIA.games import GamesWindow
+from SIA.home import HomeWindow
+from SIA.login import LoginWindow
+from SIA.music import MusicWindow
+from SIA.signup import SignUpWindow
+from SIA.video import VideoWindow
+from SIA.theme import DARK_STYLE
 
 class Application:
     def __init__(self):

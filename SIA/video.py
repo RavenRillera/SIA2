@@ -10,9 +10,10 @@ from PySide6.QtWidgets import (
     QSlider, QStackedWidget, QTabWidget, QVBoxLayout, QWidget,
 )
 
-from raven.catalog import FEATURED_VIDEOS
-from raven.ui import FunctionWorker, format_clock, make_title
-from raven.video_api import search_videos
+from SIA import featured_store
+from SIA.catalog import FEATURED_VIDEOS
+from SIA.ui import FunctionWorker, format_clock, make_title
+from SIA.video_api import search_videos
 
 PLACEHOLDER_HTML = (
     "<html><body style='background:#202020;color:#ddd;font-family:sans-serif;"
@@ -102,14 +103,27 @@ class VideoWindow(QWidget):
         return row
 
     def _build_featured_tab(self):
+        page = QWidget()
+        box = QVBoxLayout(page)
         self.featured_list = QListWidget()
-        for video in FEATURED_VIDEOS:
-            item = QListWidgetItem(f"{video['title']} — {video['subtitle']}")
-            # a "kind" key in catalog.py (e.g. "youtube") overrides the default "file"
-            item.setData(Qt.ItemDataRole.UserRole, {"kind": "file", **video})
-            self.featured_list.addItem(item)
         self.featured_list.itemClicked.connect(self._play_item)
-        return self.featured_list
+        box.addWidget(self.featured_list)
+        remove_button = QPushButton("Remove selected from Featured")
+        remove_button.clicked.connect(self._remove_featured)
+        box.addWidget(remove_button)
+        self._refresh_featured()
+        return page
+
+    def _refresh_featured(self):
+        """Built-in videos first, then the ones you added (marked with a star)."""
+        entries = [(x, False) for x in FEATURED_VIDEOS] + [(x, True) for x in featured_store.load("videos")]
+        self.featured_list.clear()
+        for video, custom in entries:
+            star = "★ " if custom else ""
+            item = QListWidgetItem(f"{star}{video['title']} — {video['subtitle']}")
+            # a "kind" key (e.g. "youtube") overrides the default "file"
+            item.setData(Qt.ItemDataRole.UserRole, {"kind": "file", **video, "custom": custom})
+            self.featured_list.addItem(item)
 
     def _build_search_tab(self):
         page = QWidget()
@@ -126,6 +140,9 @@ class VideoWindow(QWidget):
         self.results = QListWidget()
         self.results.itemClicked.connect(self._play_item)
         box.addWidget(self.results)
+        add_button = QPushButton("★ Add selected video to Featured")
+        add_button.clicked.connect(self._add_to_featured)
+        box.addWidget(add_button)
         return page
 
     # ---------- search ----------
@@ -153,6 +170,32 @@ class VideoWindow(QWidget):
         self.status_label.setText(
             f"{len(videos)} videos found. Click one to play it here." if videos else "No videos found."
         )
+
+    # ---------- featured management ----------
+    def _add_to_featured(self):
+        item = self.results.currentItem()
+        if item is None:
+            self.status_label.setText("Search and select a video first.")
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        entry = {"kind": "youtube", "title": data["title"], "subtitle": data["channel"], "video_id": data["video_id"]}
+        if any(x.get("video_id") == entry["video_id"] for x in FEATURED_VIDEOS) or not featured_store.add("videos", entry):
+            self.status_label.setText(f"\"{entry['title']}\" is already in Featured.")
+            return
+        self._refresh_featured()
+        self.status_label.setText(f"Added \"{entry['title']}\" to Featured.")
+
+    def _remove_featured(self):
+        item = self.featured_list.currentItem()
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data.get("custom"):
+            self.status_label.setText("Built-in videos can't be removed here (edit catalog.py).")
+            return
+        featured_store.remove("videos", data)
+        self._refresh_featured()
+        self.status_label.setText("Removed from Featured.")
 
     # ---------- playback ----------
     def _play_item(self, item):
@@ -232,6 +275,9 @@ class VideoWindow(QWidget):
             self.player.play()
         else:
             item = self.featured_list.currentItem() or self.featured_list.item(0)
+            if item is None:
+                self.status_label.setText("Featured is empty. Search and add a video first.")
+                return
             self._play_item(item)
 
     def stop_playback(self):

@@ -5,8 +5,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-GOOGLE_MARKER = "!google"  
 ITERATIONS = 310_000
+GOOGLE_MARKER = "!google"  # hindi ito kailanman magiging valid na password hash
 
 
 class UserDatabase:
@@ -17,7 +17,6 @@ class UserDatabase:
             database_path = data_directory / "users.db"
         self.database_path = Path(database_path)
         self.create_table()
-        
 
     @contextmanager
     def connect(self):
@@ -44,7 +43,6 @@ class UserDatabase:
                     salt TEXT NOT NULL
                 )
                 """
-                
             )
 
     @staticmethod
@@ -76,8 +74,23 @@ class UserDatabase:
         if row is None:
             return False, "Username or password is incorrect."
         stored_hash, salt = row
+        if stored_hash == GOOGLE_MARKER:
+            return False, "This account uses Google sign-in."
         check_hash, _ = self.hash_password(password, salt)
         # constant-time comparison avoids timing attacks
         if not hmac.compare_digest(check_hash, stored_hash):
             return False, "Username or password is incorrect."
         return True, "Signed in."
+
+    def get_or_create_google_user(self, email):
+        """Ise-save ang Google user sa unang sign-in. Kung nandoon na, gagamitin lang."""
+        email = email.lower()
+        with self.connect() as connection:
+            row = connection.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+            if row is None:
+                connection.execute(
+                    "INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)",
+                    (email, email, GOOGLE_MARKER, ""),
+                )
+                return True   # bagong user
+        return False          # existing na
