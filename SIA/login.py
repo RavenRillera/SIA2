@@ -36,6 +36,7 @@ class LoginWindow(QWidget):
         layout.addWidget(self.show_password)
 
         login_button = QPushButton("Log in")
+        login_button.setObjectName("primary")
         login_button.clicked.connect(self.log_in)
         layout.addWidget(login_button)
 

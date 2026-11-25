@@ -17,7 +17,7 @@ class SignUpWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.database = UserDatabase()
-        self.setWindowTitle("Raven")
+        self.setWindowTitle("Sign up")
         self.resize(460, 560)
 
         layout = QVBoxLayout(self)
@@ -41,6 +41,7 @@ class SignUpWindow(QWidget):
         layout.addWidget(self.show_password)
 
         create_button = QPushButton("Create account")
+        create_button.setObjectName("primary")
         create_button.clicked.connect(self.register_account)
         layout.addWidget(create_button)
 

@@ -1,5 +1,6 @@
 import sys
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from SIA.games import GamesWindow
@@ -18,6 +19,7 @@ def centered(page, width=FORM_WIDTH):
     """Inilalagay sa gitna ang maliliit na screen para hindi mukhang bakante ang window."""
     page.setFixedWidth(width)
     page.setObjectName("card")  # may styling sa theme.py
+    page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # kailangan para lumabas ang kulay ng card
     page.layout().setContentsMargins(28, 28, 28, 28)
     page.layout().setSpacing(10)
     holder = QWidget()

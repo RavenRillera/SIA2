@@ -30,7 +30,7 @@ class VideoWindow(QWidget):
         self.youtube_active = False   # True while a YouTube video is loaded
         self.youtube_playing = False  # our best guess of its play/pause state
         self.volume = 80              # 0-100, shared by both players
-        self.setWindowTitle(" Video")
+        self.setWindowTitle("Movies and TV Shows")
         self.resize(900, 780)
 
         # --- players: native for the featured MP4s, embedded web view for YouTube ---
@@ -54,7 +54,7 @@ class VideoWindow(QWidget):
         header = QHBoxLayout()
         back = QPushButton("Back")
         back.clicked.connect(self.back_requested.emit)
-        header.addWidget(make_title("Video"))
+        header.addWidget(make_title("Movies and TV Shows"))
         header.addStretch(1)
         header.addWidget(back)
         layout.addLayout(header)

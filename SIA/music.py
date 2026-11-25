@@ -18,7 +18,7 @@ class MusicWindow(QWidget):
         super().__init__()
         self.search_worker = None
         self.active_list = None
-        self.setWindowTitle("Music")
+        self.setWindowTitle("Music and Audio")
         self.resize(720, 660)
 
         self.player = QMediaPlayer(self)
@@ -30,7 +30,7 @@ class MusicWindow(QWidget):
         header = QHBoxLayout()
         back = QPushButton("Back")
         back.clicked.connect(self.back_requested.emit)
-        header.addWidget(make_title("Music"))
+        header.addWidget(make_title("Music and Audio"))
         header.addStretch(1)
         header.addWidget(back)
         layout.addLayout(header)

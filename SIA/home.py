@@ -22,8 +22,8 @@ class HomeWindow(QWidget):
         layout.addWidget(self.account_label)
         layout.addWidget(QLabel("Multimedia"))
 
-        video_button = QPushButton("Video")
-        music_button = QPushButton("Music")
+        video_button = QPushButton("Movies and TV Shows")
+        music_button = QPushButton("Music and Audio")
         games_button = QPushButton("Games")
         video_button.clicked.connect(self.video_requested.emit)
         music_button.clicked.connect(self.music_requested.emit)
