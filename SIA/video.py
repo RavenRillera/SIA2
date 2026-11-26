@@ -56,7 +56,7 @@ class VideoWindow(QWidget):
         self.youtube_timer.setInterval(500)
         self.youtube_timer.timeout.connect(self._poll_youtube)
         self.volume = 80              # Shared volume for both players
-        self.setWindowTitle("Movies and TV Shows")
+        self.setWindowTitle("VIDEOS")
         self.resize(900, 780)
 
         # Set up the players: native player for MP4 files and web view for YouTube
@@ -80,7 +80,7 @@ class VideoWindow(QWidget):
         header = QHBoxLayout()
         back = QPushButton("Back")
         back.clicked.connect(self.back_requested.emit)
-        header.addWidget(make_title("Movies and TV Shows"))
+        header.addWidget(make_title("VIDEOS"))
         header.addStretch(1)
         header.addWidget(back)
         layout.addLayout(header)
