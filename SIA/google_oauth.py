@@ -119,7 +119,7 @@ def _wait_for_code(server, state, should_stop):
         if not server.auth_code:
             continue
         if server.auth_state != state:
-            raise RuntimeError("Google returned a sign-in response Raven did not start.")
+            raise RuntimeError("Google returned a sign-in response Media & Entertainment did not start.")
         return server.auth_code
     if should_stop():
         return None
@@ -169,7 +169,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
         self.server.auth_code = (query.get("code") or [None])[0]
         self.server.auth_error = (query.get("error") or [None])[0]
         self.server.auth_state = (query.get("state") or [None])[0]
-        body = b"<html><body><p>Signed in. You can close this tab and return to Raven.</p></body></html>"
+        body = b"<html><body><p>Signed in. You can close this tab and return to Media & Entertainment.</p></body></html>"
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
