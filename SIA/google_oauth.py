@@ -78,7 +78,7 @@ def fetch_account_name(token):
     response = requests.get(
         USERINFO_URL,
         headers={"Authorization": f"Bearer {token}"},
-        timeout=20,
+        timeout=30,
     )
     response.raise_for_status()
     profile = response.json()

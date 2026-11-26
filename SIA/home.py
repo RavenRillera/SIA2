@@ -20,9 +20,9 @@ class HomeWindow(QWidget):
 
         self.account_label = QLabel("Signed in")
         layout.addWidget(self.account_label)
-        video_button = QPushButton("Movies and TV Shows")
-        music_button = QPushButton("Music and Audio")
-        games_button = QPushButton("Games")
+        video_button = QPushButton("VIDEOS")
+        music_button = QPushButton("MUSIC AND AUDIO")
+        games_button = QPushButton("GAMES")
         video_button.clicked.connect(self.video_requested.emit)
         music_button.clicked.connect(self.music_requested.emit)
         games_button.clicked.connect(self.games_requested.emit)
