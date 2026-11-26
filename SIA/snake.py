@@ -12,9 +12,14 @@ KEYS = {
     Qt.Key.Key_Right: (1, 0), Qt.Key.Key_D: (1, 0),
 }
 
+# Same palette as the Tic-Tac-Toe scoreboard
+MUTED = "#7F98A5"
+ACCENT = "#22D3EE"
+
 
 class SnakeBoard(QWidget):
     message = Signal(str)
+    score_changed = Signal(int)
 
     def __init__(self):
         super().__init__()
@@ -31,18 +36,19 @@ class SnakeBoard(QWidget):
         self.score = 0
         self.alive = True
         self.food = self._new_food()
+        self.score_changed.emit(0)
         self.update()
 
     def start(self):
         self.reset()
         self.timer.start(110)
         self.setFocus()
-        self.message.emit("Score: 0 — arrows/WASD to move, Space to pause")
+        self.message.emit("Arrows/WASD to move, Space to pause")
 
     def pause(self):
         if self.timer.isActive():
             self.timer.stop()
-            self.message.emit(f"Paused — score {self.score}. Press Space to resume")
+            self.message.emit("Paused — press Space to resume")
 
     def _new_food(self):
         free = [(x, y) for x in range(COLS) for y in range(ROWS) if (x, y) not in self.snake]
@@ -54,14 +60,14 @@ class SnakeBoard(QWidget):
         if not (0 <= head[0] < COLS and 0 <= head[1] < ROWS) or head in self.snake:
             self.timer.stop()
             self.alive = False
-            self.message.emit(f"Game over — score {self.score}. Press Start to play again")
+            self.message.emit("Game over — press Start to play again")
             self.update()
             return
         self.snake.insert(0, head)
         if head == self.food:
             self.score += 1
             self.food = self._new_food()
-            self.message.emit(f"Score: {self.score}")
+            self.score_changed.emit(self.score)
         else:
             self.snake.pop()
         self.update()
@@ -72,6 +78,7 @@ class SnakeBoard(QWidget):
                 self.pause()
             else:
                 self.timer.start(110)
+                self.message.emit("Arrows/WASD to move, Space to pause")
             return
         new = KEYS.get(event.key())
         if new and (new[0] != -self.direction[0] or new[1] != -self.direction[1]):
@@ -93,6 +100,8 @@ class SnakeBoard(QWidget):
 class SnakeWidget(QWidget):
     def __init__(self):
         super().__init__()
+        self.best = 0
+
         layout = QVBoxLayout(self)
         row = QHBoxLayout()
         self.status = QLabel("Press Start")
@@ -100,11 +109,51 @@ class SnakeWidget(QWidget):
         row.addWidget(self.status, stretch=1)
         row.addWidget(start)
         layout.addLayout(row)
+
+        # Scoreboard (its own panel, like Tic-Tac-Toe)
+        scoreboard = QHBoxLayout()
+        self.score_label = self._score_card(scoreboard, "SCORE")
+        self.best_label = self._score_card(scoreboard, "BEST")
+        layout.addLayout(scoreboard)
+
         self.board = SnakeBoard()
         self.board.message.connect(self.status.setText)
+        self.board.score_changed.connect(self.update_score)
         start.clicked.connect(self.board.start)
         layout.addWidget(self.board, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addStretch(1)
+
+        self.setStyleSheet(f"""
+            QLabel#scoreName {{
+                font-size: 11px; letter-spacing: 2px; color: {MUTED};
+            }}
+            QLabel#scoreNumber {{
+                font-size: 22px; font-weight: bold; color: {ACCENT};
+            }}
+        """)
+
+    def _score_card(self, parent_layout, title):
+        card = QVBoxLayout()
+        card.setSpacing(0)
+
+        name = QLabel(title)
+        name.setObjectName("scoreName")
+        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        number = QLabel("0")
+        number.setObjectName("scoreNumber")
+        number.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        card.addWidget(name)
+        card.addWidget(number)
+        parent_layout.addLayout(card)
+        return number
+
+    def update_score(self, score):
+        self.score_label.setText(str(score))
+        if score > self.best:
+            self.best = score
+            self.best_label.setText(str(score))
 
     def pause(self):
         self.board.pause()

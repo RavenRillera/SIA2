@@ -35,11 +35,11 @@ class MusicWindow(QWidget):
         header.addWidget(back)
         layout.addLayout(header)
 
-        self.music_status = QLabel("Pick a featured track or search Music (30-second previews).")
+        self.music_status = QLabel("Pick a favorite track or search Music (30-second previews).")
         layout.addWidget(self.music_status)
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_featured_tab(), "Featured")
+        tabs.addTab(self._build_featured_tab(), "Favorites")
         tabs.addTab(self._build_search_tab(), "Search Music")
         layout.addWidget(tabs, stretch=1)
 
@@ -60,7 +60,7 @@ class MusicWindow(QWidget):
         self.featured_list = QListWidget()
         self.featured_list.itemDoubleClicked.connect(lambda item: self._play_item(self.featured_list, item))
         box.addWidget(self.featured_list)
-        remove_button = QPushButton("Remove selected from Featured")
+        remove_button = QPushButton("Remove selected from Favorites")
         remove_button.clicked.connect(self._remove_featured)
         box.addWidget(remove_button)
         self._refresh_featured()
@@ -95,7 +95,7 @@ class MusicWindow(QWidget):
         self.results = QListWidget()
         self.results.itemDoubleClicked.connect(lambda item: self._play_item(self.results, item))
         box.addWidget(self.results)
-        add_button = QPushButton("★ Add selected song to Featured")
+        add_button = QPushButton("★ Add selected song to Favorites")
         add_button.clicked.connect(self._add_to_featured)
         box.addWidget(add_button)
         return page

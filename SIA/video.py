@@ -88,11 +88,11 @@ class VideoWindow(QWidget):
         layout.addWidget(self.stage, stretch=3)
         layout.addLayout(self._build_controls())
 
-        self.status_label = QLabel("Pick a featured video or search YouTube.")
+        self.status_label = QLabel("Pick a favorite video or search YouTube.")
         layout.addWidget(self.status_label)
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_featured_tab(), "Featured")
+        tabs.addTab(self._build_featured_tab(), "Favorites")
         tabs.addTab(self._build_search_tab(), "Search YouTube")
         layout.addWidget(tabs, stretch=2)
 
@@ -132,7 +132,7 @@ class VideoWindow(QWidget):
         self.featured_list = QListWidget()
         self.featured_list.itemClicked.connect(self._play_item)
         box.addWidget(self.featured_list)
-        remove_button = QPushButton("Remove selected from Featured")
+        remove_button = QPushButton("Remove selected from Favorites")
         remove_button.clicked.connect(self._remove_featured)
         box.addWidget(remove_button)
         self._refresh_featured()
@@ -219,7 +219,7 @@ class VideoWindow(QWidget):
             return
         featured_store.remove("videos", data)
         self._refresh_featured()
-        self.status_label.setText("Removed from Featured.")
+        self.status_label.setText("Removed from Favorites.")
 
     # ---------- Video playback ----------
     def _play_item(self, item):
