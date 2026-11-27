@@ -164,7 +164,7 @@ class VideoWindow(QWidget):
         self.results = QListWidget()
         self.results.itemClicked.connect(self._play_item)
         box.addWidget(self.results)
-        add_button = QPushButton("★ Add selected video to Featured")
+        add_button = QPushButton("★ Add selected video to Favorites")
         add_button.clicked.connect(self._add_to_featured)
         box.addWidget(add_button)
         return page
@@ -204,10 +204,10 @@ class VideoWindow(QWidget):
         data = item.data(Qt.ItemDataRole.UserRole)
         entry = {"kind": "youtube", "title": data["title"], "subtitle": data["channel"], "video_id": data["video_id"]}
         if any(x.get("video_id") == entry["video_id"] for x in FEATURED_VIDEOS) or not featured_store.add("videos", entry):
-            self.status_label.setText(f"\"{entry['title']}\" is already in Featured.")
+            self.status_label.setText(f"\"{entry['title']}\" is already in Favorites.")
             return
         self._refresh_featured()
-        self.status_label.setText(f"Added \"{entry['title']}\" to Featured.")
+        self.status_label.setText(f"Added \"{entry['title']}\" to Favorites.")
 
     def _remove_featured(self):
         item = self.featured_list.currentItem()

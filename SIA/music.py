@@ -171,10 +171,10 @@ class MusicWindow(QWidget):
         song = item.data(Qt.ItemDataRole.UserRole + 3)
         entry = {"title": song["title"], "subtitle": song["artist"], "url": song["preview_url"]}
         if any(t["url"] == entry["url"] for t in FEATURED_TRACKS) or not featured_store.add("tracks", entry):
-            self.music_status.setText(f"\"{entry['title']}\" is already in Featured.")
+            self.music_status.setText(f"\"{entry['title']}\" is already in Favorites.")
             return
         self._refresh_featured()
-        self.music_status.setText(f"Added \"{entry['title']}\" to Featured.")
+        self.music_status.setText(f"Added \"{entry['title']}\" to Favorites.")
 
     def _remove_featured(self):
         item = self.featured_list.currentItem()
@@ -185,7 +185,7 @@ class MusicWindow(QWidget):
             return
         featured_store.remove("tracks", {"url": item.data(Qt.ItemDataRole.UserRole)})
         self._refresh_featured()
-        self.music_status.setText("Removed from Featured.")
+        self.music_status.setText("Removed from Favorites.")
 
     # ---------- playback ----------
     def _play_item(self, source_list, item):

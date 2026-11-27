@@ -45,14 +45,6 @@ class SignUpWindow(QWidget):
         create_button.clicked.connect(self.register_account)
         layout.addWidget(create_button)
 
-        layout.addWidget(QLabel("or sign up with"))
-        self.google_button = QPushButton("Google")
-        layout.addWidget(self.google_button)
-        self.google_status = QLabel("")
-        self.google_status.setWordWrap(True)
-        layout.addWidget(self.google_status)
-        self.google = GoogleSignInController(self.google_button, self.google_status, self.database, parent=self)
-        self.google.signed_in.connect(self.google_signed_in.emit)
 
         row = QHBoxLayout()
         row.addWidget(QLabel("Already have an account?"))
